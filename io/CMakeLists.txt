@@ -79,6 +79,10 @@ traccc_add_library( traccc_io io TYPE SHARED
   "src/obj/write_spacepoints.cpp"
   "src/obj/write_track_candidates.hpp"
   "src/obj/write_track_candidates.cpp"
+  # 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
+  # My files
+  "include/traccc/io/mywrite.hpp"
+  "src/mywrite.cpp"
   )
 target_link_libraries( traccc_io
   PUBLIC vecmem::core traccc::core ActsCore
