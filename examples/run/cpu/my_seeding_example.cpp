@@ -205,14 +205,15 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                 Seeding
             ---------------*/
 
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6        
-            traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
-            // from here
 
             {
                 traccc::performance::timer t{"Seeding", elapsedTimes};
                 seeds = sa(spacepoints_per_event);
             }
+            
+            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6        
+            traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
+            // from here
 
             /*----------------------------
             Track Parameter Estimation
