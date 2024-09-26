@@ -175,18 +175,24 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     // Loop over events
     for (std::size_t event = input_opts.skip;
          event < input_opts.events + input_opts.skip; ++event) {
+        traccc::seeding_algorithm::output_type seeds;
+        // Read the hits from the relevant event file
+        traccc::io::spacepoint_reader_output readOut(&host_mr);
+        traccc::spacepoint_collection_types::host& spacepoints_per_event =
+        readOut.spacepoints;
+        // Run CKF and KF if we are using a detray geometry
+        traccc::track_candidate_container_types::host track_candidates;
+        traccc::track_state_container_types::host track_states;
+        traccc::track_state_container_types::host track_states_ar;
         {   // start measuring wall time
             traccc::performance::timer wall_t("Wall time", elapsedTimes);
 
-            traccc::seeding_algorithm::output_type seeds;
             traccc::track_params_estimation::output_type params;
             
             /*----------------
             hit file reading
             ----------------*/
 
-            // Read the hits from the relevant event file
-            traccc::io::spacepoint_reader_output readOut(&host_mr);
 
             {
                 traccc::performance::timer t("Hit reading", elapsedTimes);
@@ -194,8 +200,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                                             surface_transforms, input_opts.format);
             }
 
-            traccc::spacepoint_collection_types::host& spacepoints_per_event =
-                readOut.spacepoints;
 
             // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
             traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(spacepoints_per_event));
@@ -223,11 +227,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                 params = tp(spacepoints_per_event, seeds,
                                 {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
             }
-
-            // Run CKF and KF if we are using a detray geometry
-            traccc::track_candidate_container_types::host track_candidates;
-            traccc::track_state_container_types::host track_states;
-            traccc::track_state_container_types::host track_states_ar;
 
             // Read measurements
             traccc::io::measurement_reader_output meas_read_out(&host_mr);
@@ -280,45 +279,46 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                 }
             }
 
-            /*------------
-            Statistics
-            ------------*/
-            // I thought this statistics progress has few times to execute.
-
-            n_spacepoints += spacepoints_per_event.size();
-            n_seeds += seeds.size();
         }   // stop measuring wall
+        
+        /*------------
+        Statistics
+        ------------*/
+        // I thought this statistics progress has few times to execute.
 
-        // /*------------
-        //   Writer
-        //   ------------*/
+        n_spacepoints += spacepoints_per_event.size();
+        n_seeds += seeds.size();
 
-        // if (performance_opts.run) {
+        /*------------
+          Writer
+          ------------*/
 
-        //     traccc::event_map2 evt_map(event, input_opts.directory,
-        //                                input_opts.directory,
-        //                                input_opts.directory);
-        //     sd_performance_writer.write(vecmem::get_data(seeds),
-        //                                 vecmem::get_data(spacepoints_per_event),
-        //                                 evt_map);
+        if (performance_opts.run) {
 
-        //     find_performance_writer.write(traccc::get_data(track_candidates),
-        //                                   evt_map);
+            traccc::event_map2 evt_map(event, input_opts.directory,
+                                       input_opts.directory,
+                                       input_opts.directory);
+            sd_performance_writer.write(vecmem::get_data(seeds),
+                                        vecmem::get_data(spacepoints_per_event),
+                                        evt_map);
 
-        //     if (resolution_opts.run) {
-        //         ar_performance_writer.write(traccc::get_data(track_states_ar),
-        //                                     evt_map);
-        //     }
+            find_performance_writer.write(traccc::get_data(track_candidates),
+                                          evt_map);
 
-        //     for (unsigned int i = 0; i < track_states.size(); i++) {
-        //         const auto& trk_states_per_track = track_states.at(i).items;
+            if (resolution_opts.run) {
+                ar_performance_writer.write(traccc::get_data(track_states_ar),
+                                            evt_map);
+            }
 
-        //         const auto& fit_res = track_states[i].header;
+            for (unsigned int i = 0; i < track_states.size(); i++) {
+                const auto& trk_states_per_track = track_states.at(i).items;
 
-        //         fit_performance_writer.write(trk_states_per_track, fit_res,
-        //                                      host_det, evt_map);
-        //     }
-        // }
+                const auto& fit_res = track_states[i].header;
+
+                fit_performance_writer.write(trk_states_per_track, fit_res,
+                                             host_det, evt_map);
+            }
+        }
     }
 
     if (performance_opts.run) {
