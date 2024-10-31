@@ -38,10 +38,10 @@ namespace {
         logger::error() << msg << std::endl; \
     }
 
-#define LOG_WARN(msg)                       \
-    if (_config.verbose_warning) {          \
-        logger::warn() << msg << std::endl; \
-    }
+// #define LOG_WARN(msg)                       \
+//     if (_config.verbose_warning) {          \
+//         logger::warn() << msg << std::endl; \
+//     }
 
 #define LOG_INFO(msg)                       \
     if (_config.verbose_info) {             \
@@ -61,10 +61,11 @@ struct logger {
         return std::cout;
     }
 
-    static std::ostream& warn() {
-        std::cout << "WARNING: @greedy_ambiguity_resolution_algorithm: ";
-        return std::cout;
-    }
+    // static std::ostream& warn() {
+    //     // std::cout << "WARNING: @greedy_ambiguity_resolution_algorithm: ";
+    //     std::cout << " " << std::endl;
+    //     return std::cout;
+    // }
 
     static std::ostream& info() {
         std::cout << "INFO: @greedy_ambiguity_resolution_algorithm: ";
@@ -197,7 +198,7 @@ void greedy_ambiguity_resolution_algorithm::compute_initial_state(
                 ss << " " << st.get_measurement().measurement_id;
             }
 
-            LOG_WARN(ss.str());
+            // LOG_WARN(ss.str());
         }
 
         // Add this track chi2 value
@@ -246,10 +247,10 @@ void greedy_ambiguity_resolution_algorithm::compute_initial_state(
                            static_cast<float>(mcount_all);
             if (ratio > warning_threshold) {
                 std::size_t percent = ratio * 100;
-                LOG_WARN(std::to_string(percent) +
-                         "% of input measurements have an ID equal to 0 "
-                         "(measurement.measurement_id == 0). This may be "
-                         "suspicious.");
+                // LOG_WARN(std::to_string(percent) +
+                //          "% of input measurements have an ID equal to 0 "
+                //          "(measurement.measurement_id == 0). This may be "
+                //          "suspicious.");
             }
         }
     }

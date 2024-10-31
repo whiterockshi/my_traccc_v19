@@ -56,9 +56,9 @@
 // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
 #include "traccc/io/mywrite.hpp"
 #include "traccc/options/output_data.hpp"
+#include "traccc/performance/timer.hpp"
 // from here
 
-#include "traccc/performance/timer.hpp"
 
 using namespace traccc;
 
@@ -172,6 +172,9 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     // Timers
     traccc::performance::timing_info elapsedTimes;
 
+    // bool amb_debug = true;
+    int ineff_count = 0;
+
     // Loop over events
     for (std::size_t event = input_opts.skip;
          event < input_opts.events + input_opts.skip; ++event) {
@@ -266,19 +269,34 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             traccc::track_state_container_types::const_view fit_view(fit_data);
 
             traccc::io::mywrite(event, output_opts.directory, fit_view);
+            // std::cout << "event: " << event << std::endl;
+            // std::cout << "  Before ambiguity resolution" << std::endl;
+            // std::cout << "      track_states.size(): " << track_states.size() << std::endl;
+
             // from here
 
             /*-----------------------------------------
             Ambiguity Resolution with Greedy Solver
             -----------------------------------------*/
+            std::vector <std::size_t> event_ineff_of_amb;
             {
                 traccc::performance::timer t("Ambiguity free tracks", elapsedTimes);
                 if (resolution_opts.run) {
                     track_states_ar = host_ambiguity_resolution(track_states);
                     n_ambiguity_free_tracks += track_states_ar.size();
+                    // if (amb_debug){
+                    //     std::cout << "  After ambiguity resolution" << std::endl;
+                    //     std::cout << "      track_states_ar.size(): " << track_states_ar.size() << std::endl;
+                    // }
+
+                    // confirm whether inefficiency of amb or not and count the number of it.
+                    if (track_states_ar.size() <= 9){
+                        std::cout << "event: " << event << std::endl;
+                        std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
+                        ineff_count++;
+                    }
                 }
             }
-
         }   // stop measuring wall
         
         /*------------
@@ -320,6 +338,8 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             }
         }
     }
+
+    std::cout << "inefficent count: " << ineff_count << std::endl;
 
     if (performance_opts.run) {
         sd_performance_writer.finalize();
