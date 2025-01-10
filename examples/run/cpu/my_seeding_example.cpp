@@ -269,9 +269,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             traccc::track_state_container_types::const_view fit_view(fit_data);
 
             traccc::io::mywrite(event, output_opts.directory, fit_view);
-            // std::cout << "event: " << event << std::endl;
-            // std::cout << "  Before ambiguity resolution" << std::endl;
-            // std::cout << "      track_states.size(): " << track_states.size() << std::endl;
+            traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view);
 
             // from here
 
@@ -290,13 +288,19 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                     // }
 
                     // confirm whether inefficiency of amb or not and count the number of it.
-                    if (track_states_ar.size() <= 9){
-                        std::cout << "event: " << event << std::endl;
-                        std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
-                        ineff_count++;
-                    }
+                    // if (track_states_ar.size() <= 9){
+                    //     std::cout << "event: " << event << std::endl;
+                    //     std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
+                    //     ineff_count++;
+                    // }
                 }
             }
+
+            auto const fit_data_ar = traccc::get_data(track_states_ar);
+            traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
+
+            traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
+            traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
         }   // stop measuring wall
         
         /*------------

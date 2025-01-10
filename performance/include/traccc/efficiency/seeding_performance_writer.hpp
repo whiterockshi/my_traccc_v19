@@ -44,7 +44,7 @@ class seeding_performance_writer {
 
         /// Plot tool configurations.
         std::map<std::string, plot_helpers::binning> var_binning = {
-            {"Eta", plot_helpers::binning("#eta", 80, -2, 2)},
+            {"Eta", plot_helpers::binning("#eta", 80, -4, 4)},
             {"Phi", plot_helpers::binning("#phi", 200, -3.15, 3.15)},
             {"Pt", plot_helpers::binning("p_{T} [GeV/c]", 20, 0, 200)},
             {"Num", plot_helpers::binning("N", 30, -0.5, 29.5)}};
