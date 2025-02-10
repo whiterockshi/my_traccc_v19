@@ -246,7 +246,7 @@ void greedy_ambiguity_resolution_algorithm::compute_initial_state(
             double ratio = static_cast<float>(mcount_idzero) /
                            static_cast<float>(mcount_all);
             if (ratio > warning_threshold) {
-                std::size_t percent = ratio * 100;
+                // std::size_t percent = ratio * 100;
                 // LOG_WARN(std::to_string(percent) +
                 //          "% of input measurements have an ID equal to 0 "
                 //          "(measurement.measurement_id == 0). This may be "
@@ -524,9 +524,19 @@ void greedy_ambiguity_resolution_algorithm::resolve(state_t& state) const {
             *std::max_element(state.selected_tracks.begin(),
                               state.selected_tracks.end(), track_comperator);
 
+        std::vector<size_t> sorted_meas = state.measurements_per_track[bad_track];
+        std::sort(sorted_meas.begin(), sorted_meas.end());  // 昇順ソート
+
+        std::ostringstream meas_list_stream;
+        for (const auto& meas : sorted_meas) {
+            meas_list_stream << meas << " ";
+        }
+
+
         LOG_DEBUG("Remove track "
                   << bad_track << " n_meas "
                   << state.measurements_per_track[bad_track].size()
+                  << " meas_list [" << meas_list_stream.str() << "]"
                   << " nShared "
                   << state.shared_measurements_per_track[bad_track] << " chi2 "
                   << state.track_chi2[bad_track]);

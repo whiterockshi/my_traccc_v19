@@ -109,6 +109,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     uint64_t n_found_tracks = 0;
     uint64_t n_fitted_tracks = 0;
     uint64_t n_ambiguity_free_tracks = 0;
+    std::size_t run_event = 415;
 
     /*****************************
      * Build a geometry
@@ -178,168 +179,173 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     // Loop over events
     for (std::size_t event = input_opts.skip;
          event < input_opts.events + input_opts.skip; ++event) {
-        traccc::seeding_algorithm::output_type seeds;
-        // Read the hits from the relevant event file
-        traccc::io::spacepoint_reader_output readOut(&host_mr);
-        traccc::spacepoint_collection_types::host& spacepoints_per_event =
-        readOut.spacepoints;
-        // Run CKF and KF if we are using a detray geometry
-        traccc::track_candidate_container_types::host track_candidates;
-        traccc::track_state_container_types::host track_states;
-        traccc::track_state_container_types::host track_states_ar;
-        {   // start measuring wall time
-            traccc::performance::timer wall_t("Wall time", elapsedTimes);
-
-            traccc::track_params_estimation::output_type params;
+            bool is_ambiguity_ineff_event = event == run_event;
+            if (is_ambiguity_ineff_event){
+                std::cout << "event: " << event << std::endl;
             
-            /*----------------
-            hit file reading
-            ----------------*/
+                traccc::seeding_algorithm::output_type seeds;
+                // Read the hits from the relevant event file
+                traccc::io::spacepoint_reader_output readOut(&host_mr);
+                traccc::spacepoint_collection_types::host& spacepoints_per_event =
+                readOut.spacepoints;
+                // Run CKF and KF if we are using a detray geometry
+                traccc::track_candidate_container_types::host track_candidates;
+                traccc::track_state_container_types::host track_states;
+                traccc::track_state_container_types::host track_states_ar;
+                {   // start measuring wall time
+                    traccc::performance::timer wall_t("Wall time", elapsedTimes);
+
+                    traccc::track_params_estimation::output_type params;
+                    
+                    /*----------------
+                    hit file reading
+                    ----------------*/
 
 
-            {
-                traccc::performance::timer t("Hit reading", elapsedTimes);
-                traccc::io::read_spacepoints(readOut, event, input_opts.directory,
-                                            surface_transforms, input_opts.format);
-            }
+                    {
+                        traccc::performance::timer t("Hit reading", elapsedTimes);
+                        traccc::io::read_spacepoints(readOut, event, input_opts.directory,
+                                                    surface_transforms, input_opts.format);
+                    }
 
 
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-            traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(spacepoints_per_event));
-            // from here
+                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
+                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(spacepoints_per_event));
+                    // from here
 
-            /*----------------
-                Seeding
-            ---------------*/
+                    /*----------------
+                        Seeding
+                    ---------------*/
 
 
-            {
-                traccc::performance::timer t{"Seeding", elapsedTimes};
-                seeds = sa(spacepoints_per_event);
-            }
-            
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6        
-            traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
-            // from here
+                    {
+                        traccc::performance::timer t{"Seeding", elapsedTimes};
+                        seeds = sa(spacepoints_per_event);
+                    }
+                    
+                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6        
+                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
+                    // from here
 
-            /*----------------------------
-            Track Parameter Estimation
-            ----------------------------*/
-            {
-                traccc::performance::timer t{"Track params", elapsedTimes};
-                params = tp(spacepoints_per_event, seeds,
-                                {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
-            }
+                    /*----------------------------
+                    Track Parameter Estimation
+                    ----------------------------*/
+                    {
+                        traccc::performance::timer t{"Track params", elapsedTimes};
+                        params = tp(spacepoints_per_event, seeds,
+                                        {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
+                    }
 
-            // Read measurements
-            traccc::io::measurement_reader_output meas_read_out(&host_mr);
-            traccc::io::read_measurements(meas_read_out, event,
-                                        input_opts.directory, input_opts.format);
-            traccc::measurement_collection_types::host& measurements_per_event =
-                meas_read_out.measurements;
-            n_measurements += measurements_per_event.size();
+                    // Read measurements
+                    traccc::io::measurement_reader_output meas_read_out(&host_mr);
+                    traccc::io::read_measurements(meas_read_out, event,
+                                                input_opts.directory, input_opts.format);
+                    traccc::measurement_collection_types::host& measurements_per_event =
+                        meas_read_out.measurements;
+                    n_measurements += measurements_per_event.size();
 
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6          
-            traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(params));
-            // from here
+                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6          
+                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(params));
+                    // from here
 
-            /*------------------------
-            Track Finding with CKF
-            ------------------------*/
-            {
-                traccc::performance::timer t("Track finding with CKF", elapsedTimes);
-                track_candidates =
-                    host_finding(host_det, field, measurements_per_event, params);
-            }
-            n_found_tracks += track_candidates.size();
+                    /*------------------------
+                    Track Finding with CKF
+                    ------------------------*/
+                    {
+                        traccc::performance::timer t("Track finding with CKF", elapsedTimes);
+                        track_candidates =
+                            host_finding(host_det, field, measurements_per_event, params);
+                    }
+                    n_found_tracks += track_candidates.size();
 
-            /*------------------------
-            Track Fitting with KF
-            ------------------------*/
+                    /*------------------------
+                    Track Fitting with KF
+                    ------------------------*/
 
-            {
-                traccc::performance::timer t("Track fitting with KF", elapsedTimes);
-                track_states = host_fitting(host_det, field, track_candidates);
-            }
+                    {
+                        traccc::performance::timer t("Track fitting with KF", elapsedTimes);
+                        track_states = host_fitting(host_det, field, track_candidates);
+                    }
 
-            n_fitted_tracks += track_states.size();
+                    n_fitted_tracks += track_states.size();
 
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6   
-            auto const fit_data = traccc::get_data(track_states);
-            traccc::track_state_container_types::const_view fit_view(fit_data);
+                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6   
+                    auto const fit_data = traccc::get_data(track_states);
+                    traccc::track_state_container_types::const_view fit_view(fit_data);
 
-            traccc::io::mywrite(event, output_opts.directory, fit_view);
-            traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view);
+                    traccc::io::mywrite(event, output_opts.directory, fit_view);
+                    traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view);
 
-            // from here
+                    // from here
 
-            /*-----------------------------------------
-            Ambiguity Resolution with Greedy Solver
-            -----------------------------------------*/
-            std::vector <std::size_t> event_ineff_of_amb;
-            {
-                traccc::performance::timer t("Ambiguity free tracks", elapsedTimes);
-                if (resolution_opts.run) {
-                    track_states_ar = host_ambiguity_resolution(track_states);
-                    n_ambiguity_free_tracks += track_states_ar.size();
-                    // if (amb_debug){
-                    //     std::cout << "  After ambiguity resolution" << std::endl;
-                    //     std::cout << "      track_states_ar.size(): " << track_states_ar.size() << std::endl;
-                    // }
+                    /*-----------------------------------------
+                    Ambiguity Resolution with Greedy Solver
+                    -----------------------------------------*/
+                    std::vector <std::size_t> event_ineff_of_amb;
+                    {
+                        traccc::performance::timer t("Ambiguity free tracks", elapsedTimes);
+                        if (resolution_opts.run) {
+                            track_states_ar = host_ambiguity_resolution(track_states);
+                            n_ambiguity_free_tracks += track_states_ar.size();
+                            // if (amb_debug){
+                            //     std::cout << "  After ambiguity resolution" << std::endl;
+                            //     std::cout << "      track_states_ar.size(): " << track_states_ar.size() << std::endl;
+                            // }
 
-                    // confirm whether inefficiency of amb or not and count the number of it.
-                    // if (track_states_ar.size() <= 9){
-                    //     std::cout << "event: " << event << std::endl;
-                    //     std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
-                    //     ineff_count++;
-                    // }
+                            // confirm whether inefficiency of amb or not and count the number of it.
+                            // if (track_states_ar.size() <= 9){
+                            //     std::cout << "event: " << event << std::endl;
+                            //     std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
+                            //     ineff_count++;
+                            // }
+                        }
+                    }
+
+                    auto const fit_data_ar = traccc::get_data(track_states_ar);
+                    traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
+
+                    traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
+                    traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
+                }   // stop measuring wall
+                
+                /*------------
+                Statistics
+                ------------*/
+                // I thought this statistics progress has few times to execute.
+
+                n_spacepoints += spacepoints_per_event.size();
+                n_seeds += seeds.size();
+
+                /*------------
+                Writer
+                ------------*/
+
+                if (performance_opts.run) {
+
+                    traccc::event_map2 evt_map(event, input_opts.directory,
+                                            input_opts.directory,
+                                            input_opts.directory);
+                    sd_performance_writer.write(vecmem::get_data(seeds),
+                                                vecmem::get_data(spacepoints_per_event),
+                                                evt_map);
+
+                    find_performance_writer.write(traccc::get_data(track_candidates),
+                                                evt_map);
+
+                    if (resolution_opts.run) {
+                        ar_performance_writer.write(traccc::get_data(track_states_ar),
+                                                    evt_map);
+                    }
+
+                    for (unsigned int i = 0; i < track_states.size(); i++) {
+                        const auto& trk_states_per_track = track_states.at(i).items;
+
+                        const auto& fit_res = track_states[i].header;
+
+                        fit_performance_writer.write(trk_states_per_track, fit_res,
+                                                    host_det, evt_map);
+                    }
                 }
-            }
-
-            auto const fit_data_ar = traccc::get_data(track_states_ar);
-            traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
-
-            traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
-            traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
-        }   // stop measuring wall
-        
-        /*------------
-        Statistics
-        ------------*/
-        // I thought this statistics progress has few times to execute.
-
-        n_spacepoints += spacepoints_per_event.size();
-        n_seeds += seeds.size();
-
-        /*------------
-          Writer
-          ------------*/
-
-        if (performance_opts.run) {
-
-            traccc::event_map2 evt_map(event, input_opts.directory,
-                                       input_opts.directory,
-                                       input_opts.directory);
-            sd_performance_writer.write(vecmem::get_data(seeds),
-                                        vecmem::get_data(spacepoints_per_event),
-                                        evt_map);
-
-            find_performance_writer.write(traccc::get_data(track_candidates),
-                                          evt_map);
-
-            if (resolution_opts.run) {
-                ar_performance_writer.write(traccc::get_data(track_states_ar),
-                                            evt_map);
-            }
-
-            for (unsigned int i = 0; i < track_states.size(); i++) {
-                const auto& trk_states_per_track = track_states.at(i).items;
-
-                const auto& fit_res = track_states[i].header;
-
-                fit_performance_writer.write(trk_states_per_track, fit_res,
-                                             host_det, evt_map);
-            }
         }
     }
 
