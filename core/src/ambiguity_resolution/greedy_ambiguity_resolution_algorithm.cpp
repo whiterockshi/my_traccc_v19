@@ -39,10 +39,10 @@ namespace {
         logger::error() << msg << std::endl; \
     }
 
-#define LOG_WARN(msg)                       \
-    if (_config.verbose_warning) {          \
-        logger::warn() << msg << std::endl; \
-    }
+// #define LOG_WARN(msg)                       \
+//     if (_config.verbose_warning) {          \
+//         logger::warn() << msg << std::endl; \
+//     }
 
 #define LOG_INFO(msg)                       \
     if (_config.verbose_info) {             \
@@ -62,10 +62,11 @@ struct logger {
         return std::cout;
     }
 
-    static std::ostream& warn() {
-        std::cout << "WARNING: @greedy_ambiguity_resolution_algorithm: ";
-        return std::cout;
-    }
+    // static std::ostream& warn() {
+    //     // std::cout << "WARNING: @greedy_ambiguity_resolution_algorithm: ";
+    //     std::cout << " " << std::endl;
+    //     return std::cout;
+    // }
 
     static std::ostream& info() {
         std::cout << "INFO: @greedy_ambiguity_resolution_algorithm: ";
@@ -198,7 +199,7 @@ void greedy_ambiguity_resolution_algorithm::compute_initial_state(
                 ss << " " << st.get_measurement().measurement_id;
             }
 
-            LOG_WARN(ss.str());
+            // LOG_WARN(ss.str());
         }
 
         // Add this track chi2 value
@@ -525,9 +526,19 @@ void greedy_ambiguity_resolution_algorithm::resolve(state_t& state) const {
             *std::max_element(state.selected_tracks.begin(),
                               state.selected_tracks.end(), track_comperator);
 
+        std::vector<size_t> sorted_meas = state.measurements_per_track[bad_track];
+        std::sort(sorted_meas.begin(), sorted_meas.end());  // 昇順ソート
+
+        std::ostringstream meas_list_stream;
+        for (const auto& meas : sorted_meas) {
+            meas_list_stream << meas << " ";
+        }
+
+
         LOG_DEBUG("Remove track "
                   << bad_track << " n_meas "
                   << state.measurements_per_track[bad_track].size()
+                  << " meas_list [" << meas_list_stream.str() << "]"
                   << " nShared "
                   << state.shared_measurements_per_track[bad_track] << " chi2 "
                   << state.track_chi2[bad_track]);
