@@ -89,6 +89,7 @@ void mywrite(std::size_t event, std::string_view directory,
   traccc::spacepoint_collection_types::const_device spacepoints(spacepoints_view);
   for(const spacepoint &sp : spacepoints){
     out_file<<sp.meas.surface_link.index()<<","
+      <<sp.meas.measurement_id<<","
 	    <<std::setprecision(12)<<sp.x()<<","
 	    <<std::setprecision(12)<<sp.y()<<","
 	    <<std::setprecision(12)<<sp.z()<<","<<sp.radius()

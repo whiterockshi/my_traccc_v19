@@ -8,17 +8,19 @@
 // Project include(s).
 #include "traccc/definitions/common.hpp"
 #include "traccc/definitions/primitives.hpp"
+#include "traccc/geometry/detector.hpp"
 
 // io
-#include "traccc/io/read_geometry.hpp"
+#include "traccc/io/read_detector.hpp"
+#include "traccc/io/read_detector_description.hpp"
 #include "traccc/io/read_measurements.hpp"
 #include "traccc/io/read_spacepoints.hpp"
 #include "traccc/io/utils.hpp"
 
 // algorithms
 #include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
-#include "traccc/finding/finding_algorithm.hpp"
-#include "traccc/fitting/fitting_algorithm.hpp"
+#include "traccc/finding/combinatorial_kalman_filter_algorithm.hpp"
+#include "traccc/fitting/kalman_fitting_algorithm.hpp"
 #include "traccc/seeding/seeding_algorithm.hpp"
 #include "traccc/seeding/track_params_estimation.hpp"
 
@@ -39,7 +41,6 @@
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
-#include "detray/core/detector_metadata.hpp"
 #include "detray/detectors/bfield.hpp"
 #include "detray/io/frontend/detector_reader.hpp"
 #include "detray/navigation/navigator.hpp"
@@ -50,15 +51,13 @@
 #include <vecmem/memory/host_memory_resource.hpp>
 
 // System include(s).
+#include <cassert>
 #include <cstdlib>
 #include <iostream>
 
-// 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-#include "traccc/io/mywrite.hpp"
+// My include
+#include "tracccc/io/mywrite.hpp"
 #include "traccc/options/output_data.hpp"
-#include "traccc/performance/timer.hpp"
-// from here
-
 
 using namespace traccc;
 
@@ -68,23 +67,8 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             const traccc::opts::track_resolution& resolution_opts,
             const traccc::opts::input_data& input_opts,
             const traccc::opts::detector& detector_opts,
-            const traccc::opts::performance& performance_opts,
-            // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-            const traccc::opts::output_data& output_opts
-            // from here
-            ) {
-
-    /// Type declarations
-    using host_detector_type = detray::detector<>;
-
-    using b_field_t = covfie::field<detray::bfield::const_bknd_t>;
-    using rk_stepper_type =
-        detray::rk_stepper<b_field_t::view_t,
-                           typename host_detector_type::algebra_type,
-                           detray::constrained_step<>>;
-    using host_navigator_type = detray::navigator<const host_detector_type>;
-    using host_fitter_type =
-        traccc::kalman_fitter<rk_stepper_type, host_navigator_type>;
+            const traccc::opts::performance& performance_opts
+            const traccc::opts::output_data& output_opts) {
 
     // Memory resource used by the EDM.
     vecmem::host_memory_resource host_mr;
@@ -109,7 +93,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     uint64_t n_found_tracks = 0;
     uint64_t n_fitted_tracks = 0;
     uint64_t n_ambiguity_free_tracks = 0;
-    std::size_t run_event = 415;
 
     /*****************************
      * Build a geometry
@@ -118,25 +101,14 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     // B field value and its type
     // @TODO: Set B field as argument
     const traccc::vector3 B{0, 0, 2 * detray::unit<traccc::scalar>::T};
-    auto field = detray::bfield::create_const_field(B);
+    auto field = detray::bfield::create_const_field<traccc::scalar>(B);
 
-    // Read the detector
-    detray::io::detector_reader_config reader_cfg{};
-    reader_cfg.add_file(traccc::io::data_directory() +
-                        detector_opts.detector_file);
-    if (!detector_opts.material_file.empty()) {
-        reader_cfg.add_file(traccc::io::data_directory() +
-                            detector_opts.material_file);
-    }
-    if (!detector_opts.grid_file.empty()) {
-        reader_cfg.add_file(traccc::io::data_directory() +
-                            detector_opts.grid_file);
-    }
-    auto [host_det, names] =
-        detray::io::read_detector<host_detector_type>(host_mr, reader_cfg);
-
-    traccc::geometry surface_transforms =
-        traccc::io::alt_read_geometry(host_det);
+    // Construct a Detray detector object, if supported by the configuration.
+    traccc::default_detector::host detector{host_mr};
+    assert(detector_opts.use_detray_detector == true);
+    traccc::io::read_detector(detector, host_mr, detector_opts.detector_file,
+                              detector_opts.material_file,
+                              detector_opts.grid_file);
 
     // Seeding algorithm
     traccc::seeding_algorithm sa(seeding_opts.seedfinder,
@@ -144,212 +116,130 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
                                  seeding_opts.seedfilter, host_mr);
     traccc::track_params_estimation tp(host_mr);
 
+    // Propagation configuration
+    detray::propagation::config propagation_config(propagation_opts);
+
     // Finding algorithm configuration
-    typename traccc::finding_algorithm<rk_stepper_type,
-                                       host_navigator_type>::config_type cfg;
+    traccc::finding_config cfg(finding_opts);
+    cfg.propagation = propagation_config;
 
-    cfg.min_track_candidates_per_track = finding_opts.track_candidates_range[0];
-    cfg.max_track_candidates_per_track = finding_opts.track_candidates_range[1];
-    cfg.min_step_length_for_next_surface =
-        finding_opts.min_step_length_for_next_surface;
-    cfg.max_step_counts_for_next_surface =
-        finding_opts.max_step_counts_for_next_surface;
-    cfg.chi2_max = finding_opts.chi2_max;
-    cfg.max_num_branches_per_seed = finding_opts.nmax_per_seed;
-    cfg.max_num_skipping_per_cand = finding_opts.max_num_skipping_per_cand;
-    cfg.propagation = propagation_opts.config;
-
-    traccc::finding_algorithm<rk_stepper_type, host_navigator_type>
-        host_finding(cfg);
+    traccc::host::combinatorial_kalman_filter_algorithm host_finding(cfg);
 
     // Fitting algorithm object
-    typename traccc::fitting_algorithm<host_fitter_type>::config_type fit_cfg;
-    fit_cfg.propagation = propagation_opts.config;
+    traccc::fitting_config fit_cfg;
+    fit_cfg.propagation = propagation_config;
 
-    traccc::fitting_algorithm<host_fitter_type> host_fitting(fit_cfg);
+    traccc::host::kalman_fitting_algorithm host_fitting(fit_cfg, host_mr);
 
     traccc::greedy_ambiguity_resolution_algorithm host_ambiguity_resolution{};
-
-    // Timers
-    traccc::performance::timing_info elapsedTimes;
-
-    // bool amb_debug = true;
-    int ineff_count = 0;
 
     // Loop over events
     for (std::size_t event = input_opts.skip;
          event < input_opts.events + input_opts.skip; ++event) {
-            bool is_ambiguity_ineff_event = event == run_event;
-            if (is_ambiguity_ineff_event){
-                std::cout << "event: " << event << std::endl;
-            
-                traccc::seeding_algorithm::output_type seeds;
-                // Read the hits from the relevant event file
-                traccc::io::spacepoint_reader_output readOut(&host_mr);
-                traccc::spacepoint_collection_types::host& spacepoints_per_event =
-                readOut.spacepoints;
-                // Run CKF and KF if we are using a detray geometry
-                traccc::track_candidate_container_types::host track_candidates;
-                traccc::track_state_container_types::host track_states;
-                traccc::track_state_container_types::host track_states_ar;
-                {   // start measuring wall time
-                    traccc::performance::timer wall_t("Wall time", elapsedTimes);
 
-                    traccc::track_params_estimation::output_type params;
-                    
-                    /*----------------
-                    hit file reading
-                    ----------------*/
+        // Read the hits from the relevant event file
+        traccc::spacepoint_collection_types::host spacepoints_per_event{
+            &host_mr};
+        traccc::io::read_spacepoints(
+            spacepoints_per_event, event, input_opts.directory,
+            (input_opts.use_acts_geom_source ? &detector : nullptr),
+            input_opts.format);
+        n_spacepoints += spacepoints_per_event.size();
 
+        traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(spacepoints_per_event));
 
-                    {
-                        traccc::performance::timer t("Hit reading", elapsedTimes);
-                        traccc::io::read_spacepoints(readOut, event, input_opts.directory,
-                                                    surface_transforms, input_opts.format);
-                    }
+        /*----------------
+             Seeding
+          ---------------*/
 
+        auto seeds = sa(spacepoints_per_event);
 
-                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(spacepoints_per_event));
-                    // from here
+        /*----------------------------
+           Track Parameter Estimation
+          ----------------------------*/
 
-                    /*----------------
-                        Seeding
-                    ---------------*/
+        auto params = tp(spacepoints_per_event, seeds,
+                         {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
 
+        // Run CKF and KF if we are using a detray geometry
+        traccc::track_candidate_container_types::host track_candidates;
+        traccc::track_state_container_types::host track_states;
+        traccc::track_state_container_types::host track_states_ar;
 
-                    {
-                        traccc::performance::timer t{"Seeding", elapsedTimes};
-                        seeds = sa(spacepoints_per_event);
-                    }
-                    
-                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6        
-                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
-                    // from here
+        // Read measurements
+        traccc::measurement_collection_types::host measurements_per_event{
+            &host_mr};
+        traccc::io::read_measurements(
+            measurements_per_event, event, input_opts.directory,
+            (input_opts.use_acts_geom_source ? &detector : nullptr),
+            input_opts.format);
+        n_measurements += measurements_per_event.size();
 
-                    /*----------------------------
-                    Track Parameter Estimation
-                    ----------------------------*/
-                    {
-                        traccc::performance::timer t{"Track params", elapsedTimes};
-                        params = tp(spacepoints_per_event, seeds,
-                                        {0.f, 0.f, seeding_opts.seedfinder.bFieldInZ});
-                    }
+        /*------------------------
+           Track Finding with CKF
+          ------------------------*/
 
-                    // Read measurements
-                    traccc::io::measurement_reader_output meas_read_out(&host_mr);
-                    traccc::io::read_measurements(meas_read_out, event,
-                                                input_opts.directory, input_opts.format);
-                    traccc::measurement_collection_types::host& measurements_per_event =
-                        meas_read_out.measurements;
-                    n_measurements += measurements_per_event.size();
+        track_candidates = host_finding(
+            detector, field, vecmem::get_data(measurements_per_event),
+            vecmem::get_data(params));
+        n_found_tracks += track_candidates.size();
 
-                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6          
-                    traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(params));
-                    // from here
+        /*------------------------
+           Track Fitting with KF
+          ------------------------*/
 
-                    /*------------------------
-                    Track Finding with CKF
-                    ------------------------*/
-                    {
-                        traccc::performance::timer t("Track finding with CKF", elapsedTimes);
-                        track_candidates =
-                            host_finding(host_det, field, measurements_per_event, params);
-                    }
-                    n_found_tracks += track_candidates.size();
+        track_states =
+            host_fitting(detector, field, traccc::get_data(track_candidates));
+        n_fitted_tracks += track_states.size();
 
-                    /*------------------------
-                    Track Fitting with KF
-                    ------------------------*/
+        /*-----------------------------------------
+           Ambiguity Resolution with Greedy Solver
+          -----------------------------------------*/
 
-                    {
-                        traccc::performance::timer t("Track fitting with KF", elapsedTimes);
-                        track_states = host_fitting(host_det, field, track_candidates);
-                    }
+        if (resolution_opts.run) {
+            track_states_ar = host_ambiguity_resolution(track_states);
+            n_ambiguity_free_tracks += track_states_ar.size();
+        }
 
-                    n_fitted_tracks += track_states.size();
+        /*------------
+           Statistics
+          ------------*/
 
-                    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6   
-                    auto const fit_data = traccc::get_data(track_states);
-                    traccc::track_state_container_types::const_view fit_view(fit_data);
+        n_spacepoints += spacepoints_per_event.size();
+        n_seeds += seeds.size();
 
-                    traccc::io::mywrite(event, output_opts.directory, fit_view);
-                    traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view);
+        /*------------
+          Writer
+          ------------*/
 
-                    // from here
+        if (performance_opts.run) {
 
-                    /*-----------------------------------------
-                    Ambiguity Resolution with Greedy Solver
-                    -----------------------------------------*/
-                    std::vector <std::size_t> event_ineff_of_amb;
-                    {
-                        traccc::performance::timer t("Ambiguity free tracks", elapsedTimes);
-                        if (resolution_opts.run) {
-                            track_states_ar = host_ambiguity_resolution(track_states);
-                            n_ambiguity_free_tracks += track_states_ar.size();
-                            // if (amb_debug){
-                            //     std::cout << "  After ambiguity resolution" << std::endl;
-                            //     std::cout << "      track_states_ar.size(): " << track_states_ar.size() << std::endl;
-                            // }
+            traccc::event_data evt_data(input_opts.directory, event, host_mr,
+                                        input_opts.use_acts_geom_source,
+                                        &detector, input_opts.format, false);
 
-                            // confirm whether inefficiency of amb or not and count the number of it.
-                            // if (track_states_ar.size() <= 9){
-                            //     std::cout << "event: " << event << std::endl;
-                            //     std::cout << "  track_states_ar.size(): " << track_states_ar.size() << std::endl;
-                            //     ineff_count++;
-                            // }
-                        }
-                    }
+            sd_performance_writer.write(vecmem::get_data(seeds),
+                                        vecmem::get_data(spacepoints_per_event),
+                                        evt_data);
 
-                    auto const fit_data_ar = traccc::get_data(track_states_ar);
-                    traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
+            find_performance_writer.write(traccc::get_data(track_candidates),
+                                          evt_data);
 
-                    traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
-                    traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
-                }   // stop measuring wall
-                
-                /*------------
-                Statistics
-                ------------*/
-                // I thought this statistics progress has few times to execute.
+            if (resolution_opts.run) {
+                ar_performance_writer.write(traccc::get_data(track_states_ar),
+                                            evt_data);
+            }
 
-                n_spacepoints += spacepoints_per_event.size();
-                n_seeds += seeds.size();
+            for (unsigned int i = 0; i < track_states.size(); i++) {
+                const auto& trk_states_per_track = track_states.at(i).items;
 
-                /*------------
-                Writer
-                ------------*/
+                const auto& fit_res = track_states[i].header;
 
-                if (performance_opts.run) {
-
-                    traccc::event_map2 evt_map(event, input_opts.directory,
-                                            input_opts.directory,
-                                            input_opts.directory);
-                    sd_performance_writer.write(vecmem::get_data(seeds),
-                                                vecmem::get_data(spacepoints_per_event),
-                                                evt_map);
-
-                    find_performance_writer.write(traccc::get_data(track_candidates),
-                                                evt_map);
-
-                    if (resolution_opts.run) {
-                        ar_performance_writer.write(traccc::get_data(track_states_ar),
-                                                    evt_map);
-                    }
-
-                    for (unsigned int i = 0; i < track_states.size(); i++) {
-                        const auto& trk_states_per_track = track_states.at(i).items;
-
-                        const auto& fit_res = track_states[i].header;
-
-                        fit_performance_writer.write(trk_states_per_track, fit_res,
-                                                    host_det, evt_map);
-                    }
-                }
+                fit_performance_writer.write(trk_states_per_track, fit_res,
+                                             detector, evt_data);
+            }
         }
     }
-
-    std::cout << "inefficent count: " << ineff_count << std::endl;
 
     if (performance_opts.run) {
         sd_performance_writer.finalize();
@@ -376,8 +266,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
         std::cout << "- ambiguity resolution: deactivated" << std::endl;
     }
 
-    std::cout << "==> Elapsed times...\n" << elapsedTimes << std::endl;
-
     return EXIT_SUCCESS;
 }
 
@@ -393,26 +281,15 @@ int main(int argc, char* argv[]) {
     traccc::opts::track_propagation propagation_opts;
     traccc::opts::track_resolution resolution_opts;
     traccc::opts::performance performance_opts;
-    // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-    traccc::opts::output_data output_opts;
-    // from here
     traccc::opts::program_options program_opts{
         "Full Tracking Chain on the Host (without clusterization)",
         {detector_opts, input_opts, seeding_opts, finding_opts,
-         propagation_opts, resolution_opts, performance_opts, 
-         // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-         output_opts
-         // from here
-         },
+         propagation_opts, resolution_opts, performance_opts},
         argc,
         argv};
 
     // Run the application.
     return seq_run(seeding_opts, finding_opts, propagation_opts,
                    resolution_opts, input_opts, detector_opts,
-                   performance_opts
-                   // 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6
-                   , output_opts
-                   // from here
-                   );
+                   performance_opts);
 }

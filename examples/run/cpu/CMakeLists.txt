@@ -47,6 +47,6 @@ traccc_add_executable( throughput_mt "throughput_mt.cpp"
 
 # 2024 6 16 12:20 shiraiwa @Traccc tutorial Step6                
 traccc_add_executable( my_seeding_example "my_seeding_example.cpp"
-   LINK_LIBRARIES vecmem::core traccc::core traccc::io 
-                  traccc::performance traccc::options detray::utils detray::io)
+   LINK_LIBRARIES vecmem::core traccc::core traccc::io
+   traccc::performance traccc::options detray::detectors detray::io)
 # from here
