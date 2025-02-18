@@ -8,7 +8,7 @@
 #pragma once
 
 // Project include(s).
-#include "traccc/edm/cell.hpp"
+// #include "traccc/edm/cell.hpp"
 #include "traccc/edm/spacepoint.hpp"
 #include "traccc/edm/seed.hpp"
 #include "traccc/edm/track_parameters.hpp"
@@ -21,19 +21,19 @@
 
 namespace traccc::io {
 
-/// Function for cell file writing
-///
-/// @param event is the event index
-/// @param directory is the directory for the output cell file
-/// @param xx_view is the xx collection to write
-///
-void mywrite(std::size_t event, std::string_view directory,
-	     traccc::cell_collection_types::const_view cells_view,
-	     std::string_view device="");
+// /// Function for cell file writing
+// ///
+// /// @param event is the event index
+// /// @param directory is the directory for the output cell file
+// /// @param xx_view is the xx collection to write
+// ///
+// void mywrite(std::size_t event, std::string_view directory,
+// 	     traccc::cell_collection_types::const_view cells_view,
+// 	     std::string_view device="");
 
-void mywrite(std::size_t event, std::string_view directory,
-	     traccc::cell_module_collection_types::const_view modules_view,
-	     std::string_view device="");
+// void mywrite(std::size_t event, std::string_view directory,
+// 	     traccc::cell_module_collection_types::const_view modules_view,
+// 	     std::string_view device="");
 
 void mywrite(std::size_t event, std::string_view directory,
 	     traccc::measurement_collection_types::const_view measurements_view,

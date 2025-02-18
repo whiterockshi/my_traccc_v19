@@ -74,7 +74,7 @@ class greedy_ambiguity_resolution_algorithm
         bool verbose_error = true;
         bool verbose_warning = true;
         bool verbose_info = true;
-        bool verbose_debug = true;
+        bool verbose_debug = false;
     };
 
     struct state_t {

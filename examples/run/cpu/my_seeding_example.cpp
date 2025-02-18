@@ -56,7 +56,7 @@
 #include <iostream>
 
 // My include
-#include "tracccc/io/mywrite.hpp"
+#include "traccc/io/mywrite.hpp"
 #include "traccc/options/output_data.hpp"
 
 using namespace traccc;
@@ -67,7 +67,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             const traccc::opts::track_resolution& resolution_opts,
             const traccc::opts::input_data& input_opts,
             const traccc::opts::detector& detector_opts,
-            const traccc::opts::performance& performance_opts
+            const traccc::opts::performance& performance_opts,
             const traccc::opts::output_data& output_opts) {
 
     // Memory resource used by the EDM.
@@ -153,6 +153,7 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
           ---------------*/
 
         auto seeds = sa(spacepoints_per_event);
+        traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(seeds));
 
         /*----------------------------
            Track Parameter Estimation
@@ -174,6 +175,8 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             (input_opts.use_acts_geom_source ? &detector : nullptr),
             input_opts.format);
         n_measurements += measurements_per_event.size();
+
+        traccc::io::mywrite(event, output_opts.directory, vecmem::get_data(params));
 
         /*------------------------
            Track Finding with CKF
@@ -200,6 +203,12 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             track_states_ar = host_ambiguity_resolution(track_states);
             n_ambiguity_free_tracks += track_states_ar.size();
         }
+
+        auto const fit_data_ar = traccc::get_data(track_states_ar);
+        traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
+
+        traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
+        traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
 
         /*------------
            Statistics
@@ -281,15 +290,16 @@ int main(int argc, char* argv[]) {
     traccc::opts::track_propagation propagation_opts;
     traccc::opts::track_resolution resolution_opts;
     traccc::opts::performance performance_opts;
+    traccc::opts::output_data output_opts;
     traccc::opts::program_options program_opts{
         "Full Tracking Chain on the Host (without clusterization)",
         {detector_opts, input_opts, seeding_opts, finding_opts,
-         propagation_opts, resolution_opts, performance_opts},
+         propagation_opts, resolution_opts, performance_opts, output_opts},
         argc,
         argv};
 
     // Run the application.
     return seq_run(seeding_opts, finding_opts, propagation_opts,
                    resolution_opts, input_opts, detector_opts,
-                   performance_opts);
+                   performance_opts, output_opts);
 }

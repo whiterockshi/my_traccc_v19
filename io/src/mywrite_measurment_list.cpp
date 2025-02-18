@@ -15,45 +15,45 @@
 
 namespace traccc::io {
 
-void mywrite(std::size_t event, std::string_view directory,
-	     traccc::cell_collection_types::const_view cells_view,
-	     std::string_view device) {
+// void mywrite(std::size_t event, std::string_view directory,
+// 	     traccc::cell_collection_types::const_view cells_view,
+// 	     std::string_view device) {
 
-  std::string filename=data_directory() + directory.data() + device.data() +
-    get_event_filename(event, "-cells.txt");
+//   std::string filename=data_directory() + directory.data() + device.data() +
+//     get_event_filename(event, "-cells.txt");
 
-  std::ofstream out_file(filename.data());
-  out_file<<"module_link,channel0,channel1,timestamp,value"<<std::endl;
+//   std::ofstream out_file(filename.data());
+//   out_file<<"module_link,channel0,channel1,timestamp,value"<<std::endl;
   
-  traccc::cell_collection_types::const_device cells(cells_view);
-  for(const cell & cl: cells) {
-    out_file<<cl.module_link<<","<<cl.channel0<<","<<cl.channel1<<","<<cl.time<<","<<cl.activation
-	    <<std::endl;;
-  }
-  out_file.close();
+//   traccc::cell_collection_types::const_device cells(cells_view);
+//   for(const cell & cl: cells) {
+//     out_file<<cl.module_link<<","<<cl.channel0<<","<<cl.channel1<<","<<cl.time<<","<<cl.activation
+// 	    <<std::endl;;
+//   }
+//   out_file.close();
   
-}
+// }
 
-void mywrite(std::size_t event, std::string_view directory,
-	     traccc::cell_module_collection_types::const_view modules_view,
-	     std::string_view device) {
+// void mywrite(std::size_t event, std::string_view directory,
+// 	     traccc::cell_module_collection_types::const_view modules_view,
+// 	     std::string_view device) {
 
-  std::string filename=data_directory() + directory.data() + device.data() + 
-    get_event_filename(event, "-modules.txt");
-  std::ofstream out_file(filename.data());
-  out_file<<"geometry_id,threshold,min_center_x,min_center_y,pitch_x,pitch_y"
-	  <<std::endl;
+//   std::string filename=data_directory() + directory.data() + device.data() + 
+//     get_event_filename(event, "-modules.txt");
+//   std::ofstream out_file(filename.data());
+//   out_file<<"geometry_id,threshold,min_center_x,min_center_y,pitch_x,pitch_y"
+// 	  <<std::endl;
   
-  traccc::cell_module_collection_types::const_device modules(modules_view);
-  for(const cell_module & md: modules) {
-    out_file<<md.surface_link.index()<<","<<md.threshold<<","
-	    <<md.pixel.min_center_x<<","<<md.pixel.min_center_y<<","
-	    <<md.pixel.pitch_x<<","<<md.pixel.pitch_y
-	    <<std::endl;
-  }
-  out_file.close();
+//   traccc::cell_module_collection_types::const_device modules(modules_view);
+//   for(const cell_module & md: modules) {
+//     out_file<<md.surface_link.index()<<","<<md.threshold<<","
+// 	    <<md.pixel.min_center_x<<","<<md.pixel.min_center_y<<","
+// 	    <<md.pixel.pitch_x<<","<<md.pixel.pitch_y
+// 	    <<std::endl;
+//   }
+//   out_file.close();
   
-}
+// }
 
 void mywrite(std::size_t event, std::string_view directory,
 	     traccc::measurement_collection_types::const_view measurements_view,
@@ -68,7 +68,7 @@ void mywrite(std::size_t event, std::string_view directory,
 
   traccc::measurement_collection_types::const_device measurements(measurements_view);
   for(const measurement &am : measurements){
-    out_file<<am.module_link<<","<<am.local[0]<<","<<am.local[1]<<","
+    out_file<<am.surface_link<<","<<am.local[0]<<","<<am.local[1]<<","
 	    <<am.variance[0]<<","<<am.variance[1]
 	    <<std::endl;
   }
@@ -148,7 +148,7 @@ void mywrite(std::size_t event, std::string_view directory,
 	     traccc::track_state_container_types::const_view tracks_view,
 	     std::string_view device, std::string_view step){
 
-  std::string filetype= (std::string)"-" + step.data() +".txt";  
+  std::string filetype = static_cast<std::string>("-") + step.data() + ".txt";
   std::string filename=data_directory() + directory.data() + device.data() + 
     get_event_filename(event, filetype.data());
   std::ofstream out_file(filename.data());
@@ -177,7 +177,7 @@ void mylist_meas_in_tracks(std::size_t event, std::string_view directory,
 	     traccc::track_state_container_types::const_view tracks_view,
 	     std::string_view device, std::string_view step){
 
-  std::string filetype= (std::string)"-meas-" + step.data() +".txt";  
+  std::string filetype = static_cast<std::string>("-meas-") + step.data() + ".txt";
   std::string filename=data_directory() + directory.data() + device.data() + 
     get_event_filename(event, filetype.data());
   std::ofstream out_file(filename.data());
