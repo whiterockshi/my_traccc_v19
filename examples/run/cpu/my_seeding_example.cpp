@@ -195,6 +195,13 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             host_fitting(detector, field, traccc::get_data(track_candidates));
         n_fitted_tracks += track_states.size();
 
+        auto const fit_data_ar = traccc::get_data(track_states_ar);
+        traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
+
+        traccc::io::mywrite(event, output_opts.directory, fit_view_ar);
+        traccc::io::mylist_meas_in_tracks(event,output_opts.directory);
+
+
         /*-----------------------------------------
            Ambiguity Resolution with Greedy Solver
           -----------------------------------------*/
@@ -203,9 +210,6 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
             track_states_ar = host_ambiguity_resolution(track_states);
             n_ambiguity_free_tracks += track_states_ar.size();
         }
-
-        auto const fit_data_ar = traccc::get_data(track_states_ar);
-        traccc::track_state_container_types::const_view fit_view_ar(fit_data_ar);
 
         traccc::io::mywrite(event, output_opts.directory, fit_view_ar, "", "amb");
         traccc::io::mylist_meas_in_tracks(event,output_opts.directory,fit_view_ar,"", "amb");
