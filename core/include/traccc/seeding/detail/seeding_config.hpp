@@ -1,1 +1,1 @@
-./seeding_config_atlas_mod_v18.hpp
+seeding_config_default.hpp
