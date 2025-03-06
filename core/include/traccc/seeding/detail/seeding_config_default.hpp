@@ -16,7 +16,7 @@ namespace traccc {
 
 struct seedfinder_config {
 
-    seedfinder_config() { setup(); }
+    seedfinder_config(){ setup(); }
 
     // limiting location of measurements
     // Beomki's note: this value introduces redundant bins

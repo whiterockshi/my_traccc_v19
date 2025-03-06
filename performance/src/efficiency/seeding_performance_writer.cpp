@@ -65,6 +65,7 @@ void seeding_performance_writer::write(
     const spacepoint_collection_types::const_view& spacepoints_view,
     const event_data& evt_data) {
 
+    std::cout << "seeding_performance_writer::write" << std::endl;
     std::map<particle_id, std::size_t> match_counter;
 
     // Iterate over the seeds.
@@ -109,6 +110,14 @@ void seeding_performance_writer::write(
         if (it != match_counter.end()) {
             is_matched = true;
             n_matched_seeds_for_particle = it->second;
+        }
+        
+        if(!is_matched) {
+            std::cout << "    seding_performance_writer:: matching failed: pid =" 
+            << pid << std::endl;
+            std::cout << "        pT = " << vector::perp(ptc.momentum) << std::endl;
+            std::cout << "        eta = " << vector::eta(ptc.momentum) << std::endl;
+            std::cout << "        phi = " << vector::phi(ptc.momentum) << std::endl;
         }
 
         m_data->m_eff_plot_tool.fill(m_data->m_eff_plot_cache, ptc, is_matched);

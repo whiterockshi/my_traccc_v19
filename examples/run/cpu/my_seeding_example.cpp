@@ -137,6 +137,8 @@ int seq_run(const traccc::opts::track_seeding& seeding_opts,
     for (std::size_t event = input_opts.skip;
          event < input_opts.events + input_opts.skip; ++event) {
 
+        std::cout << "==> Event " << event << std::endl;
+
         // Read the hits from the relevant event file
         traccc::spacepoint_collection_types::host spacepoints_per_event{
             &host_mr};

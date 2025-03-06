@@ -12,6 +12,10 @@
 #include "traccc/definitions/primitives.hpp"
 #include "traccc/definitions/qualifiers.hpp"
 
+// add include
+#include <algebra/math/cmath.hpp>
+#include <algebra/math/generic.hpp>
+
 namespace traccc {
 
 struct seedfinder_config {
